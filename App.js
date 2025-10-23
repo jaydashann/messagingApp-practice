@@ -5,9 +5,11 @@ import {
   Image,
   TouchableHighlight,
   BackHandler,
-  Platform,
   Alert,
+  StatusBar,
+  Text,
 } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
 import MessageList from './components/MessageList';
 import {
   createImageMessage,
@@ -26,41 +28,44 @@ export default class App extends React.Component {
         longitude: -122.4324,
       }),
     ],
-    fullscreenImageId: null, // track which image is fullscreen
+    fullscreenImageId: null,
+    isConnected: true, // track network connection
   };
 
-  // listen to Android Back Button
   componentDidMount() {
+    // Listen to Android back button
     this.backSubscription = BackHandler.addEventListener(
       'hardwareBackPress',
       this.handleBackPress
     );
+
+    // Listen to network changes
+    this.netInfoUnsubscribe = NetInfo.addEventListener((state) => {
+      this.setState({ isConnected: state.isConnected });
+    });
   }
 
   componentWillUnmount() {
     if (this.backSubscription) this.backSubscription.remove();
+    if (this.netInfoUnsubscribe) this.netInfoUnsubscribe();
   }
 
-  // handle Back button press on Android
   handleBackPress = () => {
     const { fullscreenImageId } = this.state;
     if (fullscreenImageId) {
       this.dismissFullscreenImage();
-      return true; // we handled the back button
+      return true;
     }
-    return false; // allow default behavior
+    return false;
   };
 
-  // dismiss fullscreen image
   dismissFullscreenImage = () => {
     this.setState({ fullscreenImageId: null });
   };
 
-  // handle tap events on messages
   handlePressMessage = ({ id, type, text }) => {
     switch (type) {
       case 'text':
-        // alert dialog for deleting text messages
         Alert.alert(
           'Delete message?',
           `"${text}" will be deleted.`,
@@ -81,16 +86,11 @@ export default class App extends React.Component {
         break;
 
       case 'image':
-        // open image fullscreen
         this.setState({ fullscreenImageId: id });
-        break;
-
-      default:
         break;
     }
   };
 
-  // render all messages using MessageList component
   renderMessageList() {
     const { messages } = this.state;
     return (
@@ -103,7 +103,6 @@ export default class App extends React.Component {
     );
   }
 
-  // render fullscreen image overlay
   renderFullscreenImage = () => {
     const { messages, fullscreenImageId } = this.state;
     if (!fullscreenImageId) return null;
@@ -126,10 +125,24 @@ export default class App extends React.Component {
     );
   };
 
-  // render the full layout
+  renderOfflineBanner() {
+    if (this.state.isConnected) return null;
+    return (
+      <View style={styles.offlineBanner}>
+        <Text style={styles.offlineText}>No Internet Connection</Text>
+      </View>
+    );
+  }
+
   render() {
+    const { isConnected } = this.state;
     return (
       <View style={styles.container}>
+        <StatusBar
+          backgroundColor={isConnected ? 'white' : 'red'}
+          barStyle={isConnected ? 'dark-content' : 'light-content'}
+        />
+        {this.renderOfflineBanner()}
         {this.renderMessageList()}
         {this.renderFullscreenImage()}
       </View>
@@ -156,5 +169,14 @@ const styles = StyleSheet.create({
   fullscreenImage: {
     width: '100%',
     height: '100%',
+  },
+  offlineBanner: {
+    backgroundColor: 'red',
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  offlineText: {
+    color: 'white',
+    fontWeight: 'bold',
   },
 });
